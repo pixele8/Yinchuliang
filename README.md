@@ -5,6 +5,7 @@
 ## 功能特性
 
 - **知识库管理**：添加、浏览工艺知识，支持标签分类。
+- **知识维护**：支持查看、编辑、删除知识条目与决策链，保持资料最新。
 - **智能问答**：根据本地知识库对输入问题进行匹配，返回相关答案。
 - **决策链记录**：保存处理流程/决策链，包含背景、步骤、结果以及标签。
 - **历史检索**：按关键词搜索历史决策记录，快速复用经验。
@@ -39,9 +40,15 @@
 | ---- | ---- |
 | `add-knowledge` | 添加知识条目：标题、问题、答案、标签 |
 | `list-knowledge` | 列出知识库中所有条目 |
+| `view-knowledge` | 查看单个知识条目的详细信息 |
+| `update-knowledge` | 更新知识条目的标题、问题、答案或标签 |
+| `delete-knowledge` | 删除指定的知识条目 |
 | `ask` | 根据问题自动匹配知识库答案 |
 | `add-history` | 保存决策链（背景、步骤、结果、标签） |
 | `list-history` | 查看所有决策链及其评论 |
+| `view-history` | 查看单条决策链以及评论详情 |
+| `update-history` | 更新决策链的标题、背景、步骤、结果或标签 |
+| `delete-history` | 删除决策链及其关联评论 |
 | `search-history` | 按关键词搜索历史决策 |
 | `comment-history` | 对指定决策链添加评论与评分 |
 | `register-user` | 注册普通或管理员用户，支持指定执行人 |
@@ -49,11 +56,13 @@
 | `promote-user` / `demote-user` | 授予或移除管理员权限（需要 `--actor`） |
 | `activate-user` / `deactivate-user` | 启用或停用用户（需要 `--actor`） |
 | `reset-password` | 重置指定用户密码（需要 `--actor`） |
+| `change-password` | 用户自助修改密码 |
 | `admin-summary` | 查看知识库、决策、用户等全局统计 |
 | `admin-log` | 查看管理员操作审计记录 |
 | `export` | 将所有数据导出为 JSON |
+| `import` | 从 JSON 文件导入知识、决策链和评论 |
 
-运行 `python main.py <command> --help` 可以查看具体参数说明。涉及后台管理的命令（如停用用户、提升管理员等）需使用 `--actor` 参数指定执行人，用于写入审计日志。
+运行 `python main.py <command> --help` 可以查看具体参数说明。涉及后台管理的命令（如停用用户、提升管理员等）需使用 `--actor` 参数指定执行人，用于写入审计日志。知识与决策链的编辑命令支持仅更新部分字段，若需要清空标签，可使用 `--tags ""`。
 
 ## 打包为离线安装包
 
@@ -65,6 +74,8 @@ pyinstaller --onefile main.py
 ```
 
 执行后将在 `dist/` 目录生成一个独立的可执行文件，复制到目标机器即可离线运行。若需要图形界面，可在此基础上接入 PyQt、Tkinter 等桌面框架。
+
+如需在多台设备之间同步知识，可结合 `export` 与 `import` 命令：在源设备执行导出命令生成 JSON 文件，再在目标设备执行 `python main.py --database my.db import 导出的文件` 完成批量导入。
 
 ## 数据结构
 

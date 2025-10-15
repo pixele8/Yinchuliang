@@ -46,6 +46,19 @@ class UserService:
     def _generate_salt(self) -> bytes:
         return os.urandom(16)
 
+    def _get_credentials(self, username: str) -> tuple[str, bytes] | None:
+        with self._db() as database:
+            row = next(
+                database.query(
+                    "SELECT password_hash, salt FROM users WHERE username = ?",
+                    (username,),
+                ),
+                None,
+            )
+        if row is None:
+            return None
+        return row["password_hash"], bytes.fromhex(row["salt"])
+
     # ------------------------------------------------------------------
     # user operations
     def register_user(self, username: str, password: str, *, is_admin: bool = False) -> int:
@@ -68,15 +81,10 @@ class UserService:
         user = self.get_user(username)
         if not user or not user.is_active:
             return False
-        with self._db() as database:
-            row = next(
-                database.query("SELECT password_hash, salt FROM users WHERE username = ?", (username,)),
-                None,
-            )
-        if row is None:
+        credentials = self._get_credentials(username)
+        if credentials is None:
             return False
-        expected = row["password_hash"]
-        salt = bytes.fromhex(row["salt"])
+        expected, salt = credentials
         candidate = self._hash_password(password, salt)
         return candidate == expected
 
@@ -139,6 +147,25 @@ class UserService:
                 "UPDATE users SET password_hash = ?, salt = ? WHERE username = ?",
                 (password_hash, salt.hex(), username),
             )
+
+    def change_password(self, username: str, old_password: str, new_password: str) -> bool:
+        user = self.get_user(username)
+        if not user or not user.is_active:
+            return False
+        credentials = self._get_credentials(username)
+        if credentials is None:
+            return False
+        expected, salt = credentials
+        if self._hash_password(old_password, salt) != expected:
+            return False
+        new_salt = self._generate_salt()
+        new_hash = self._hash_password(new_password, new_salt)
+        with self._db() as database:
+            database.execute(
+                "UPDATE users SET password_hash = ?, salt = ? WHERE username = ?",
+                (new_hash, new_salt.hex(), username),
+            )
+        return True
 
     # ------------------------------------------------------------------
     # admin support

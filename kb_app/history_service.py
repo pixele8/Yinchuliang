@@ -76,6 +76,57 @@ class HistoryService:
             for row in rows
         ]
 
+    def get_history(self, history_id: int) -> Optional[DecisionHistory]:
+        with self._db() as database:
+            row = next(
+                database.query(
+                    "SELECT id, title, context, steps, outcome, tags, created_at FROM decision_history WHERE id = ?",
+                    (history_id,),
+                ),
+                None,
+            )
+        if row is None:
+            return None
+        return DecisionHistory(
+            id=row["id"],
+            title=row["title"],
+            context=row["context"],
+            steps=row["steps"],
+            outcome=row["outcome"],
+            tags=load_json(row["tags"]),
+            created_at=row["created_at"],
+        )
+
+    def update_history(
+        self,
+        history_id: int,
+        *,
+        title: Optional[str] = None,
+        context: Optional[str] = None,
+        steps: Optional[str] = None,
+        outcome: Optional[str] = None,
+        tags: Optional[Iterable[str]] = None,
+    ) -> bool:
+        current = self.get_history(history_id)
+        if not current:
+            return False
+        new_title = title if title is not None else current.title
+        new_context = context if context is not None else current.context
+        new_steps = steps if steps is not None else current.steps
+        new_outcome = outcome if outcome is not None else current.outcome
+        new_tags = list(tags) if tags is not None else current.tags
+        with self._db() as database:
+            database.execute(
+                "UPDATE decision_history SET title = ?, context = ?, steps = ?, outcome = ?, tags = ? WHERE id = ?",
+                (new_title, new_context, new_steps, new_outcome, dump_json(new_tags), history_id),
+            )
+        return True
+
+    def delete_history(self, history_id: int) -> bool:
+        with self._db() as database:
+            cursor = database.execute("DELETE FROM decision_history WHERE id = ?", (history_id,))
+            return cursor.rowcount > 0
+
     def search_histories(self, query: str, limit: int = 10) -> List[DecisionHistory]:
         tokens = tokenize(query)
         if not tokens:
