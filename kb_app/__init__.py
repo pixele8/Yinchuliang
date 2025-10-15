@@ -6,4 +6,7 @@ __all__ = [
     "history_service",
     "user_service",
     "cli",
+    "corpus_service",
+    "gui",
+    "blueprint",
 ]

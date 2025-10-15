@@ -24,6 +24,7 @@ class KnowledgeEntry:
     answer: str
     tags: list[str]
     created_at: str
+    corpus_id: int | None
 
 
 class KnowledgeService:
@@ -39,25 +40,38 @@ class KnowledgeService:
         question: str,
         answer: str,
         tags: Optional[Iterable[str]] = None,
+        corpus_id: int | None = None,
     ) -> int:
         tags = tags or []
         with self._db() as database:
             cursor = database.execute(
                 """
-                INSERT INTO knowledge(title, question, answer, tags)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO knowledge(title, question, answer, tags, corpus_id)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (title, question, answer, dump_json(tags)),
+                (title, question, answer, dump_json(tags), corpus_id),
             )
             return int(cursor.lastrowid)
 
-    def list_entries(self) -> List[KnowledgeEntry]:
+    def list_entries(self, corpus_id: int | None = None) -> List[KnowledgeEntry]:
         with self._db() as database:
-            rows = list(
-                database.query(
-                    "SELECT id, title, question, answer, tags, created_at FROM knowledge ORDER BY created_at DESC"
+            if corpus_id is None:
+                rows = list(
+                    database.query(
+                        "SELECT id, title, question, answer, tags, created_at, corpus_id FROM knowledge ORDER BY created_at DESC"
+                    )
                 )
-            )
+            else:
+                rows = list(
+                    database.query(
+                        """
+                        SELECT id, title, question, answer, tags, created_at, corpus_id
+                        FROM knowledge WHERE corpus_id = ?
+                        ORDER BY created_at DESC
+                        """,
+                        (corpus_id,),
+                    )
+                )
         return [
             KnowledgeEntry(
                 id=row["id"],
@@ -66,6 +80,7 @@ class KnowledgeService:
                 answer=row["answer"],
                 tags=load_json(row["tags"]),
                 created_at=row["created_at"],
+                corpus_id=row["corpus_id"],
             )
             for row in rows
         ]
@@ -74,7 +89,7 @@ class KnowledgeService:
         with self._db() as database:
             row = next(
                 database.query(
-                    "SELECT id, title, question, answer, tags, created_at FROM knowledge WHERE id = ?",
+                    "SELECT id, title, question, answer, tags, created_at, corpus_id FROM knowledge WHERE id = ?",
                     (entry_id,),
                 ),
                 None,
@@ -84,11 +99,12 @@ class KnowledgeService:
         return KnowledgeEntry(
             id=row["id"],
             title=row["title"],
-            question=row["question"],
-            answer=row["answer"],
-            tags=load_json(row["tags"]),
-            created_at=row["created_at"],
-        )
+                question=row["question"],
+                answer=row["answer"],
+                tags=load_json(row["tags"]),
+                created_at=row["created_at"],
+                corpus_id=row["corpus_id"],
+            )
 
     def update_entry(
         self,
@@ -98,6 +114,7 @@ class KnowledgeService:
         question: Optional[str] = None,
         answer: Optional[str] = None,
         tags: Optional[Iterable[str]] = None,
+        corpus_id: int | None = None,
     ) -> bool:
         current = self.get_entry(entry_id)
         if not current:
@@ -106,10 +123,11 @@ class KnowledgeService:
         new_question = question if question is not None else current.question
         new_answer = answer if answer is not None else current.answer
         new_tags = list(tags) if tags is not None else current.tags
+        new_corpus_id = corpus_id if corpus_id is not None else current.corpus_id
         with self._db() as database:
             database.execute(
-                "UPDATE knowledge SET title = ?, question = ?, answer = ?, tags = ? WHERE id = ?",
-                (new_title, new_question, new_answer, dump_json(new_tags), entry_id),
+                "UPDATE knowledge SET title = ?, question = ?, answer = ?, tags = ?, corpus_id = ? WHERE id = ?",
+                (new_title, new_question, new_answer, dump_json(new_tags), new_corpus_id, entry_id),
             )
         return True
 
@@ -118,8 +136,11 @@ class KnowledgeService:
             cursor = database.execute("DELETE FROM knowledge WHERE id = ?", (entry_id,))
             return cursor.rowcount > 0
 
-    def _build_index(self) -> tuple[list[KnowledgeEntry], dict[str, dict[int, int]]]:
-        entries = self.list_entries()
+    def _build_index(
+        self,
+        corpus_id: int | None = None,
+    ) -> tuple[list[KnowledgeEntry], dict[str, dict[int, int]]]:
+        entries = self.list_entries(corpus_id)
         index: dict[str, dict[int, int]] = {}
         for entry in entries:
             tokens = tokenize(entry.question + " " + entry.answer + " " + " ".join(entry.tags))
@@ -128,8 +149,13 @@ class KnowledgeService:
                 index[token][entry.id] += 1
         return entries, index
 
-    def answer(self, question: str, limit: int = 3) -> list[tuple[KnowledgeEntry, float]]:
-        entries, index = self._build_index()
+    def answer(
+        self,
+        question: str,
+        limit: int = 3,
+        corpus_id: int | None = None,
+    ) -> list[tuple[KnowledgeEntry, float]]:
+        entries, index = self._build_index(corpus_id)
         if not entries:
             return []
         query_tokens = tokenize(question)

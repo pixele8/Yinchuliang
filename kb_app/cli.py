@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Iterable
 
+from .blueprint import BLUEPRINT_TEMPLATE
 from .history_service import HistoryService
 from .knowledge_service import KnowledgeService
 from .user_service import UserService
@@ -36,13 +37,14 @@ def add_knowledge(args: argparse.Namespace) -> None:
         question=args.question,
         answer=args.answer,
         tags=parse_tags(args.tags),
+        corpus_id=args.corpus_id,
     )
     print(f"知识条目已保存，编号: {entry_id}")
 
 
 def list_knowledge(args: argparse.Namespace) -> None:
     service = KnowledgeService(args.database)
-    for entry in service.list_entries():
+    for entry in service.list_entries(corpus_id=args.corpus_id):
         print(f"[{entry.id}] {entry.title} | 标签: {format_tags(entry.tags)} | 创建于 {entry.created_at}")
         print(f"问题: {entry.question}")
         print(f"答案: {entry.answer}\n")
@@ -73,6 +75,7 @@ def update_knowledge(args: argparse.Namespace) -> None:
         question=args.question,
         answer=args.answer,
         tags=tags,
+        corpus_id=args.corpus_id,
     )
     if not success:
         print("更新失败，指定的条目不存在。")
@@ -91,7 +94,7 @@ def delete_knowledge(args: argparse.Namespace) -> None:
 
 def ask_question(args: argparse.Namespace) -> None:
     service = KnowledgeService(args.database)
-    answers = service.answer(args.question, limit=args.limit)
+    answers = service.answer(args.question, limit=args.limit, corpus_id=args.corpus_id)
     if not answers:
         print("知识库中暂无匹配条目，请先添加相关知识。")
         return
@@ -395,6 +398,7 @@ def import_data(args: argparse.Namespace) -> None:
             question=item.get("question", ""),
             answer=item.get("answer", ""),
             tags=item.get("tags", []),
+            corpus_id=item.get("corpus_id"),
         )
         created_knowledge += 1
 
@@ -437,6 +441,17 @@ def import_data(args: argparse.Namespace) -> None:
     )
 
 
+def export_blueprint_template(args: argparse.Namespace) -> None:
+    output = Path(args.output)
+    if output.exists() and not args.force:
+        print("导出失败：目标文件已存在，若需覆盖请添加 --force。")
+        return
+    if output.parent:
+        output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(BLUEPRINT_TEMPLATE, encoding="utf-8")
+    print(f"知识蓝图模板已导出到 {output}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="离线知识库与决策管理系统")
     parser.add_argument(
@@ -453,9 +468,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser_add.add_argument("question", help="问题描述")
     parser_add.add_argument("answer", help="答案或处理方式")
     parser_add.add_argument("--tags", help="标签，使用逗号分隔")
+    parser_add.add_argument("--corpus-id", type=int, help="关联的知识库编号")
     parser_add.set_defaults(func=add_knowledge)
 
     parser_list = subparsers.add_parser("list-knowledge", help="列出所有知识条目")
+    parser_list.add_argument("--corpus-id", type=int, help="只查看指定知识库")
     parser_list.set_defaults(func=list_knowledge)
 
     parser_view = subparsers.add_parser("view-knowledge", help="查看单个知识条目")
@@ -468,6 +485,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser_update.add_argument("--question", help="新的问题描述")
     parser_update.add_argument("--answer", help="新的答案内容")
     parser_update.add_argument("--tags", help="新的标签，使用逗号分隔")
+    parser_update.add_argument("--corpus-id", type=int, help="调整关联的知识库编号")
     parser_update.set_defaults(func=update_knowledge)
 
     parser_delete = subparsers.add_parser("delete-knowledge", help="删除知识条目")
@@ -477,6 +495,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser_ask = subparsers.add_parser("ask", help="根据知识库自动回答问题")
     parser_ask.add_argument("question", help="提出的问题")
     parser_ask.add_argument("--limit", type=int, default=3, help="返回的答案数量")
+    parser_ask.add_argument("--corpus-id", type=int, help="限定检索的知识库编号")
     parser_ask.set_defaults(func=ask_question)
 
     parser_history_add = subparsers.add_parser("add-history", help="新增决策链记录")
@@ -575,6 +594,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser_import = subparsers.add_parser("import", help="从 JSON 导入数据")
     parser_import.add_argument("input", help="输入文件路径")
     parser_import.set_defaults(func=import_data)
+
+    parser_blueprint = subparsers.add_parser(
+        "blueprint-template",
+        help="导出标准化知识蓝图模板",
+    )
+    parser_blueprint.add_argument("output", help="模板输出路径")
+    parser_blueprint.add_argument(
+        "--force",
+        action="store_true",
+        help="如目标文件存在则覆盖",
+    )
+    parser_blueprint.set_defaults(func=export_blueprint_template)
 
     return parser
 

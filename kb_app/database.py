@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS knowledge (
     question TEXT NOT NULL,
     answer TEXT NOT NULL,
     tags TEXT DEFAULT '[]',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    corpus_id INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS decision_history (
@@ -55,12 +56,55 @@ CREATE TABLE IF NOT EXISTS admin_events (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS knowledge_corpora (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    base_path TEXT,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS corpus_files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    corpus_id INTEGER NOT NULL,
+    file_name TEXT NOT NULL,
+    file_path TEXT,
+    content_hash TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(corpus_id) REFERENCES knowledge_corpora(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_chunks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    corpus_file_id INTEGER NOT NULL,
+    knowledge_id INTEGER NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    FOREIGN KEY(corpus_file_id) REFERENCES corpus_files(id) ON DELETE CASCADE,
+    FOREIGN KEY(knowledge_id) REFERENCES knowledge(id) ON DELETE CASCADE,
+    UNIQUE(corpus_file_id, chunk_index)
+);
+
 CREATE INDEX IF NOT EXISTS idx_knowledge_tags ON knowledge(id, tags);
 CREATE INDEX IF NOT EXISTS idx_history_tags ON decision_history(id, tags);
 CREATE INDEX IF NOT EXISTS idx_history_comments_history ON history_comments(history_id);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_admin_events_created ON admin_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_corpus_files_corpus ON corpus_files(corpus_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_corpus ON knowledge(corpus_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_file ON knowledge_chunks(corpus_file_id);
 """
+
+
+def _apply_migrations(connection: sqlite3.Connection) -> None:
+    """Ensure new columns exist when upgrading from older schemas."""
+
+    existing_columns = {
+        row[1]
+        for row in connection.execute("PRAGMA table_info(knowledge)").fetchall()
+    }
+    if "corpus_id" not in existing_columns:
+        connection.execute("ALTER TABLE knowledge ADD COLUMN corpus_id INTEGER")
+    connection.commit()
 
 
 def ensure_database(db_path: Path) -> sqlite3.Connection:
@@ -70,6 +114,7 @@ def ensure_database(db_path: Path) -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     connection.executescript(DB_SCHEMA)
+    _apply_migrations(connection)
     connection.commit()
     return connection
 
