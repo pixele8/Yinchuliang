@@ -1,0 +1,10 @@
+[project]
+name = "offline-kb"
+version = "0.1.0"
+description = "Offline knowledge base and decision management system"
+requires-python = ">=3.10"
+authors = [{ name = "Your Name" }]
+readme = "README.md"
+
+[project.scripts]
+offline-kb = "kb_app.cli:main"
