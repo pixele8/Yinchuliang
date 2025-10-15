@@ -8,4 +8,5 @@ __all__ = [
     "cli",
     "corpus_service",
     "gui",
+    "blueprint",
 ]

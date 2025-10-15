@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional, Sequence
 
+from .blueprint import BlueprintEntry, BlueprintParsingError, KnowledgeBlueprint
 from .database import Database
 from .knowledge_service import KnowledgeService
 
@@ -321,6 +322,33 @@ class CorpusService:
             created += 1
         return created
 
+    def _save_blueprint_entries(
+        self,
+        corpus_file_id: int,
+        entries: Sequence[BlueprintEntry],
+        *,
+        corpus_id: int,
+    ) -> int:
+        created = 0
+        for index, entry in enumerate(entries):
+            entry_id = self._knowledge_service.add_entry(
+                title=entry.title,
+                question=entry.question,
+                answer=entry.answer,
+                tags=entry.tags,
+                corpus_id=corpus_id,
+            )
+            with self._db() as database:
+                database.execute(
+                    """
+                    INSERT OR REPLACE INTO knowledge_chunks(corpus_file_id, knowledge_id, chunk_index)
+                    VALUES (?, ?, ?)
+                    """,
+                    (corpus_file_id, entry_id, index),
+                )
+            created += 1
+        return created
+
     def ingest_paths(
         self,
         corpus_id: int,
@@ -361,17 +389,37 @@ class CorpusService:
 
             hash_value = hashlib.sha1(text.encode("utf-8")).hexdigest()
             corpus_file_id = self._register_file(corpus_id, path.resolve(), content_hash=hash_value)
-            chunks = _chunk_text(text, chunk_size=chunk_size, overlap=overlap)
-            if not chunks:
-                skipped.append(path.name)
-                self._remove_file_chunks(corpus_file_id)
-                continue
-            created = self._save_chunks(
-                corpus_file_id,
-                chunks,
-                corpus_id=corpus_id,
-                title_prefix=path.stem,
-            )
+
+            if KnowledgeBlueprint.looks_like(text):
+                try:
+                    blueprint = KnowledgeBlueprint.parse(text)
+                except BlueprintParsingError as exc:
+                    skipped.append(f"{path.name} (蓝图解析失败: {exc})")
+                    self._remove_file_chunks(corpus_file_id)
+                    continue
+
+                structured_entries = blueprint.entries
+                if not structured_entries:
+                    skipped.append(f"{path.name} (蓝图内容为空)")
+                    self._remove_file_chunks(corpus_file_id)
+                    continue
+                created = self._save_blueprint_entries(
+                    corpus_file_id,
+                    structured_entries,
+                    corpus_id=corpus_id,
+                )
+            else:
+                chunks = _chunk_text(text, chunk_size=chunk_size, overlap=overlap)
+                if not chunks:
+                    skipped.append(path.name)
+                    self._remove_file_chunks(corpus_file_id)
+                    continue
+                created = self._save_chunks(
+                    corpus_file_id,
+                    chunks,
+                    corpus_id=corpus_id,
+                    title_prefix=path.stem,
+                )
             processed += 1
             chunks_created += created
 

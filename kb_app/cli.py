@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Iterable
 
+from .blueprint import BLUEPRINT_TEMPLATE
 from .history_service import HistoryService
 from .knowledge_service import KnowledgeService
 from .user_service import UserService
@@ -440,6 +441,17 @@ def import_data(args: argparse.Namespace) -> None:
     )
 
 
+def export_blueprint_template(args: argparse.Namespace) -> None:
+    output = Path(args.output)
+    if output.exists() and not args.force:
+        print("导出失败：目标文件已存在，若需覆盖请添加 --force。")
+        return
+    if output.parent:
+        output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(BLUEPRINT_TEMPLATE, encoding="utf-8")
+    print(f"知识蓝图模板已导出到 {output}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="离线知识库与决策管理系统")
     parser.add_argument(
@@ -582,6 +594,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser_import = subparsers.add_parser("import", help="从 JSON 导入数据")
     parser_import.add_argument("input", help="输入文件路径")
     parser_import.set_defaults(func=import_data)
+
+    parser_blueprint = subparsers.add_parser(
+        "blueprint-template",
+        help="导出标准化知识蓝图模板",
+    )
+    parser_blueprint.add_argument("output", help="模板输出路径")
+    parser_blueprint.add_argument(
+        "--force",
+        action="store_true",
+        help="如目标文件存在则覆盖",
+    )
+    parser_blueprint.set_defaults(func=export_blueprint_template)
 
     return parser
 
