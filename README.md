@@ -139,6 +139,55 @@ python -m compileall kb_app main.py
 
 5. **创建 Pull Request（如需合并主分支）**：在 GitHub 页面选择相应分支发起 PR，填写改动摘要与测试情况，等待审核合并。
 
+### 处理主分支变更与冲突
+
+当远程 `main` 分支有新的提交时，推荐在个人功能分支上执行以下流程以保持同步并解决潜在冲突：
+
+1. **获取远程更新并切换到功能分支**：
+
+   ```bash
+   git fetch origin
+   git checkout <你的分支>
+   ```
+
+2. **合并或变基远程主分支**：
+
+   ```bash
+   git merge origin/main
+   # 或者
+   git rebase origin/main
+   ```
+
+   - `merge` 会生成一次新的合并提交，保留完整历史；
+   - `rebase` 会重写当前分支历史，使其基于最新 `main`，历史更线性。
+
+3. **解决冲突**：若命令行提示存在冲突，可打开 Git 工具（如 VS Code、Sourcetree）或手动编辑冲突文件：
+
+   - 查找包含 `<<<<<<<`、`=======`、`>>>>>>>` 标记的区域；
+   - 保留正确的代码内容并删除冲突标记；
+   - 完成所有冲突文件的调整后执行 `git add <文件>`。
+
+4. **完成合并/变基并验证**：
+
+   ```bash
+   git status          # 确认所有冲突均已解决
+   git commit          # merge 时需要提交一次合并记录
+   # 若使用 rebase：
+   git rebase --continue
+   ```
+
+   解决冲突后再次运行项目测试或编译命令，确保最新代码能够正常工作。
+
+5. **推送更新后的分支**：
+
+   ```bash
+   git push origin <你的分支>
+   # 若使用 rebase 且出现推送被拒绝，可改用：
+   git push origin <你的分支> --force-with-lease
+   ```
+
+   推送成功后，在 Pull Request 中确认展示的是最新的合并结果。
+
 ## 许可协议
 
 本项目以 MIT License 发布，可在遵守协议的前提下自由使用与二次开发。
