@@ -109,6 +109,36 @@ pyinstaller offline_kb.spec
 python -m compileall kb_app main.py
 ```
 
+## 如何在 GitHub 上更新项目
+
+1. **同步最新代码**：
+
+   ```bash
+   git pull origin <你的分支>
+   ```
+
+2. **确认改动**：在本地完成开发后，查看差异确保内容准确。
+
+   ```bash
+   git status
+   git diff
+   ```
+
+3. **提交到本地仓库**：为本次改动撰写简洁明了的提交信息。
+
+   ```bash
+   git add .
+   git commit -m "feat: 描述你的改动"
+   ```
+
+4. **推送到 GitHub**：将本地分支更新推送到远程仓库。
+
+   ```bash
+   git push origin <你的分支>
+   ```
+
+5. **创建 Pull Request（如需合并主分支）**：在 GitHub 页面选择相应分支发起 PR，填写改动摘要与测试情况，等待审核合并。
+
 ## 许可协议
 
 本项目以 MIT License 发布，可在遵守协议的前提下自由使用与二次开发。
