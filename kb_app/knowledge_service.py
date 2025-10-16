@@ -176,4 +176,8 @@ class KnowledgeService:
             if score > 0
         ]
         scored_entries.sort(key=lambda item: item[1], reverse=True)
-        return scored_entries[:limit]
+        if scored_entries:
+            return scored_entries[:limit]
+
+        fallback = [(entry, 0.0) for entry in entries[:limit]]
+        return fallback
