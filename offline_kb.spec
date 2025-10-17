@@ -21,6 +21,10 @@ qt_plugins = qt_base / "plugins"
 if qt_plugins.exists():
     datas.append((str(qt_plugins), "PySide6/plugins"))
 
+sample_data = project_root / "kb_app" / "sample_data"
+if sample_data.exists():
+    datas.append((str(sample_data), "kb_app/sample_data"))
+
 
 a = Analysis(
     ["main.py"],

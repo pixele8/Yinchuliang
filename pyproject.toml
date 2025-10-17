@@ -11,3 +11,6 @@ dependencies = [
 
 [project.scripts]
 offline-kb = "kb_app.cli:main"
+
+[tool.setuptools.package-data]
+"kb_app.sample_data" = ["**/*"]
